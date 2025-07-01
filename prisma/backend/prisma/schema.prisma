@@ -1,0 +1,85 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enum para os papéis (roles) de usuário, conforme nossa discussão
+enum Role {
+  ADMIN
+  GESTOR
+  PREFEITO
+  USUARIO
+}
+
+// Tabela para gerenciar os usuários e seus papéis 
+model User {
+  id            String        @id @default(uuid()) @map("id")
+  name          String        @map("nome")
+  email         String        @unique
+  password      String        @map("senha_hash")
+  role          Role          @default(USUARIO) // Papel padrão para novos usuários
+  plan          String        @default("gratuito") @map("plano") // Campo do compêndio 
+  createdAt     DateTime      @default(now()) @map("criado_em")
+
+  // Relações
+  documentos    DocumentoTR[]
+  versoesSalvas VersionTR[]
+
+  @@map("usuarios")
+}
+
+// Tabela principal para os documentos (Termos de Referência) 
+model DocumentoTR {
+  id           String        @id @default(uuid()) @map("id")
+  userId       String        @map("usuario_id")
+  title        String        @map("titulo")
+  status       String        @default("em_processamento")
+  currentPhase String?       @map("fase_atual")
+  structure    Json          @map("estrutura_tr") // JSONB para armazenar todos os dados coletados 
+  createdAt    DateTime      @default(now()) @map("criado_em")
+  updatedAt    DateTime      @updatedAt @map("atualizado_em")
+
+  // Relações
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versoes      VersionTR[]
+  exportacoes  ExportacaoTR[]
+
+  @@map("documentos_tr")
+}
+
+// Tabela para o histórico de edições (Versionamento) 
+model VersionTR {
+  id       String   @id @default(uuid()) @map("id")
+  trId     String   @map("tr_id")
+  content  String   @map("conteudo")
+  authorId String   @map("autor_id")
+  savedAt  DateTime @default(now()) @map("data_salva")
+
+  // Relações
+  documento DocumentoTR @relation(fields: [trId], references: [id], onDelete: Cascade)
+  author    User        @relation(fields: [authorId], references: [id])
+
+  @@map("versoes_tr")
+}
+
+// Tabela para registrar os documentos exportados 
+model ExportacaoTR {
+  id        String   @id @default(uuid()) @map("id")
+  trId      String   @map("tr_id")
+  type      String   @map("tipo") // 'pdf' ou 'docx' 
+  hash      String   @map("hash_sha256")
+  fileUrl   String   @map("url_arquivo")
+  generatedAt DateTime @default(now()) @map("gerado_em")
+
+  // Relação
+  documento DocumentoTR @relation(fields: [trId], references: [id], onDelete: Cascade)
+
+  @@map("exportacoes_tr")
+}
